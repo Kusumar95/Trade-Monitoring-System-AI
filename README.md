@@ -1,5 +1,5 @@
 
-# Trade Monitoring System – AI+ (Demo Stream v2)
+# Trade Monitoring System – AI+ 
 
 Adds:
 - Buttons to ingest GOOD/BAD data for each agent in real time
