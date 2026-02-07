@@ -1,0 +1,238 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Trade Monitoring System – AI+</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg:#020617; --panel:#0b1220; --border:#1e293b; --text:#e5e7eb; --muted:#94a3b8;
+      --green:#22c55e; --orange:#f97316; --purple:#a855f7; --red:#ef4444; --blue:#38bdf8;
+    }
+    body{background:linear-gradient(180deg,#020617,#06122a); color:var(--text); font-family:Inter,Arial; padding:18px}
+    h1{margin:0 0 10px; color:var(--blue)}
+    .topbar{display:flex; gap:12px; flex-wrap:wrap; align-items:center; margin-bottom:14px}
+    .pill{background:rgba(56,189,248,.12); border:1px solid rgba(56,189,248,.25); color:var(--blue);
+          padding:8px 10px; border-radius:999px; font-weight:700}
+    .btn{border:none; border-radius:12px; padding:10px 12px; font-weight:800; cursor:pointer; color:#06122a}
+    .btn.good{background:linear-gradient(90deg,#22c55e,#86efac)}
+    .btn.bad{background:linear-gradient(90deg,#ef4444,#fb7185)}
+    .btn.mix{background:linear-gradient(90deg,#f97316,#fdba74)}
+    .btn.stop{background:linear-gradient(90deg,#64748b,#cbd5e1)}
+    .btn.export{background:linear-gradient(90deg,#a855f7,#c4b5fd)}
+    .grid{display:grid; grid-template-columns:repeat(3,minmax(260px,1fr)); gap:14px}
+    @media (max-width: 980px){ .grid{grid-template-columns:1fr} }
+    .card{background:rgba(11,18,32,.85); border:1px solid var(--border); border-radius:18px; padding:14px; box-shadow:0 10px 30px rgba(0,0,0,.35)}
+    .card h3{margin:0 0 8px}
+    .tag{display:inline-block; padding:4px 10px; border-radius:999px; font-weight:800; font-size:12px; margin-left:6px}
+    .tag.green{background:rgba(34,197,94,.18); color:#86efac; border:1px solid rgba(34,197,94,.35)}
+    .tag.orange{background:rgba(249,115,22,.18); color:#fdba74; border:1px solid rgba(249,115,22,.35)}
+    .tag.purple{background:rgba(168,85,247,.18); color:#c4b5fd; border:1px solid rgba(168,85,247,.35)}
+    textarea{width:100%; height:120px; background:#050a14; color:var(--text); border:1px solid rgba(148,163,184,.35); border-radius:12px; padding:10px; font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono"; font-size:12px}
+    .row{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+    .mini{padding:8px 10px; border-radius:12px; font-weight:900; cursor:pointer; border:none; color:#06122a}
+    .mini.g{background:var(--green)} .mini.b{background:var(--red)} .mini.o{background:var(--orange)}
+    .mini.p{background:var(--purple)} .mini.s{background:#94a3b8}
+    .insights{display:grid; grid-template-columns:1.2fr .8fr; gap:14px; margin-top:14px}
+    @media (max-width: 980px){ .insights{grid-template-columns:1fr} }
+    .ins-card{background:rgba(11,18,32,.85); border:1px solid var(--border); border-radius:18px; padding:14px}
+    .ins-card h2{margin:0 0 10px}
+    .ins-item{border:1px solid rgba(148,163,184,.22); border-radius:14px; padding:12px; margin-bottom:10px; background:rgba(2,6,23,.6)}
+    .sevHIGH{border-color:rgba(239,68,68,.55)} .sevMEDIUM{border-color:rgba(249,115,22,.55)}
+    .sevLOW{border-color:rgba(34,197,94,.45)}
+    .sevline{display:flex; justify-content:space-between; align-items:center; gap:8px}
+    .sevline b{font-size:14px}
+    .bar{height:8px; background:rgba(148,163,184,.2); border-radius:999px; overflow:hidden; margin-top:8px}
+    .fill{height:100%}
+    .muted{color:var(--muted); font-size:12px; line-height:1.35}
+    canvas{background:rgba(11,18,32,.85); border:1px solid var(--border); border-radius:18px; padding:10px; margin-top:14px}
+    .statusdot{display:inline-block; width:10px; height:10px; border-radius:99px; margin-right:8px; background:#64748b}
+    .running{background:var(--green)}
+  </style>
+</head>
+<body>
+  <h1>📊 Trade Monitoring System – AI+</h1>
+
+  <div class="topbar">
+    <span class="pill"><span id="dot" class="statusdot"></span>Demo Stream: <span id="streamState">stopped</span></span>
+    <button class="btn good" onclick="demoStart('good')">▶ Start GOOD Stream</button>
+    <button class="btn bad" onclick="demoStart('bad')">⚠ Start BAD Stream</button>
+    <button class="btn mix" onclick="demoStart('mixed')">✨ Start MIXED Stream</button>
+    <button class="btn stop" onclick="demoStop()">⏹ Stop Stream</button>
+    <button class="btn export" onclick="window.open('/incident/report')">📝 Export Incident Report</button>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>DAU Agent <span class="tag green">Users</span></h3>
+      <textarea id="dauText">{ "region":"us-east", "value": 12000 }</textarea>
+      <div class="row">
+        <button class="mini g" onclick="sendFromTextarea('dau','dauText')">Send Custom</button>
+        <button class="mini o" onclick="send('dau', sampleGood.dau)">Send GOOD</button>
+        <button class="mini b" onclick="send('dau', sampleBad.dau)">Send BAD</button>
+      </div>
+      <div class="muted">Tip: BAD DAU triggers outage-style insight when value is very low.</div>
+    </div>
+
+    <div class="card">
+      <h3>Trade Agent <span class="tag orange">Volume</span></h3>
+      <textarea id="tradeText">{ "region":"eu-west", "count": 450, "volume": 820000 }</textarea>
+      <div class="row">
+        <button class="mini o" onclick="sendFromTextarea('trade','tradeText')">Send Custom</button>
+        <button class="mini g" onclick="send('trade', sampleGood.trade)">Send GOOD</button>
+        <button class="mini b" onclick="send('trade', sampleBad.trade)">Send BAD</button>
+      </div>
+      <div class="muted">Tip: BAD Trade uses huge volume to trigger spike/fraud/duplication insight.</div>
+    </div>
+
+    <div class="card">
+      <h3>Completeness Agent <span class="tag purple">Quality</span></h3>
+      <textarea id="compText">{ "region":"ap-south", "expected": 1440, "observed": 1398, "ratio": 0.97 }</textarea>
+      <div class="row">
+        <button class="mini p" onclick="sendFromTextarea('completeness','compText')">Send Custom</button>
+        <button class="mini g" onclick="send('completeness', sampleGood.completeness)">Send GOOD</button>
+        <button class="mini b" onclick="send('completeness', sampleBad.completeness)">Send BAD</button>
+      </div>
+      <div class="muted">Tip: BAD Completeness drops ratio below SLA → HIGH severity insight.</div>
+    </div>
+  </div>
+
+  <div class="insights">
+    <div class="ins-card">
+      <h2>🤖 AI Insights (live)</h2>
+      <div id="aiList"></div>
+      <div class="muted">Insights include severity, confidence, impact forecast, and next-step actions.</div>
+    </div>
+    <div class="ins-card">
+      <h2>⏱️ Processing Timeline</h2>
+      <div class="muted">Lag(ms) = processed_ts - event_ts. Spikes indicate backlog or slow consumers.</div>
+      <canvas id="timeline"></canvas>
+    </div>
+  </div>
+
+  <canvas id="dauChart"></canvas>
+  <canvas id="tradeChart"></canvas>
+  <canvas id="compChart"></canvas>
+
+<script>
+  // samples for quick demo
+  const sampleGood = {
+    dau: { region: "us-east", value: 14500 },
+    trade: { region: "eu-west", count: 620, volume: 1250000.50 },
+    completeness: { region: "ap-south", expected: 1440, observed: 1435, ratio: 0.996 }
+  };
+  const sampleBad = {
+    dau: { region: "ap-south", value: 850 },
+    trade: { region: "us-east", count: 22, volume: 12000000.00 },
+    completeness: { region: "eu-west", expected: 1440, observed: 900, ratio: 0.625 }
+  };
+
+  const mkLine = (id, label) => new Chart(document.getElementById(id), {
+    type: 'line',
+    data: { labels: [], datasets: [{ label, data: [] }] },
+    options: { animation: false, plugins:{legend:{labels:{color:"#e5e7eb"}}}, scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}} }
+  });
+
+  const dauC = mkLine("dauChart","DAU (sum)");
+  const tradeC = mkLine("tradeChart","Trade Volume (sum)");
+  const compC = mkLine("compChart","Completeness % (avg)");
+
+  const timelineC = new Chart(document.getElementById("timeline"), {
+    type: 'bar',
+    data: { labels: [], datasets: [{ label:"Lag (ms)", data: [] }] },
+    options: { animation:false, plugins:{legend:{labels:{color:"#e5e7eb"}}}, scales:{x:{ticks:{color:"#94a3b8"}},y:{ticks:{color:"#94a3b8"}}} }
+  });
+
+  async function send(agent, payload){
+    await fetch("/ingest/"+agent, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(payload)
+    });
+    await refresh();
+  }
+
+  async function sendFromTextarea(agent, textareaId){
+    try{
+      const txt = document.getElementById(textareaId).value;
+      const obj = JSON.parse(txt);
+      await send(agent, obj);
+    }catch(e){
+      alert("Invalid JSON. Please fix and try again.");
+    }
+  }
+
+  async function demoStart(mode){
+    await fetch("/demo/start?mode="+encodeURIComponent(mode), { method:"POST" });
+    await refreshStatus();
+  }
+  async function demoStop(){
+    await fetch("/demo/stop", { method:"POST" });
+    await refreshStatus();
+  }
+  async function refreshStatus(){
+    const s = await fetch("/demo/status").then(r=>r.json());
+    document.getElementById("streamState").textContent = s.running ? "running" : "stopped";
+    const dot = document.getElementById("dot");
+    dot.className = "statusdot " + (s.running ? "running" : "");
+  }
+
+  function renderInsights(rows){
+    const el = document.getElementById("aiList");
+    if(!rows || rows.length === 0){
+      el.innerHTML = '<div class="muted">No insights yet. Inject BAD data or start a stream.</div>';
+      return;
+    }
+    el.innerHTML = rows.slice(0,8).map(r=>{
+      const sev=r[0], conf=Math.round(r[1]*100), nl=r[2], impact=r[3], actions=r[4];
+      const sevClass = "sev"+sev;
+      const color = sev==="HIGH" ? "#ef4444" : (sev==="MEDIUM" ? "#f97316" : "#22c55e");
+      return `
+        <div class="ins-item ${sevClass}">
+          <div class="sevline">
+            <b style="color:${color}">${sev}</b>
+            <span class="muted">Confidence: <b style="color:${color}">${conf}%</b></span>
+          </div>
+          <div class="bar"><div class="fill" style="width:${conf}%; background:${color}"></div></div>
+          <div style="margin-top:8px">${nl}</div>
+          <div class="muted" style="margin-top:6px"><b>Impact:</b> ${impact}</div>
+          <div class="muted" style="margin-top:6px"><b>Next:</b> ${actions}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  async function refresh(){
+    await refreshStatus();
+
+    const dau = await fetch("/data/dau").then(r=>r.json());
+    const trade = await fetch("/data/trade").then(r=>r.json());
+    const comp = await fetch("/data/completeness").then(r=>r.json());
+    const ai = await fetch("/data/ai").then(r=>r.json());
+
+    // charts (use event_ts)
+    dauC.data.labels = dau.slice().reverse().map(x=>new Date(x[2]).toLocaleTimeString());
+    dauC.data.datasets[0].data = dau.slice().reverse().map(x=>x[1]);
+    dauC.update();
+
+    tradeC.data.labels = trade.slice().reverse().map(x=>new Date(x[3]).toLocaleTimeString());
+    tradeC.data.datasets[0].data = trade.slice().reverse().map(x=>x[2]);
+    tradeC.update();
+
+    compC.data.labels = comp.slice().reverse().map(x=>new Date(x[4]).toLocaleTimeString());
+    compC.data.datasets[0].data = comp.slice().reverse().map(x=>Math.round(x[3]*1000)/10);
+    compC.update();
+
+    // timeline from dau: processed_ts - event_ts
+    timelineC.data.labels = dau.slice().reverse().map(x=>new Date(x[2]).toLocaleTimeString());
+    timelineC.data.datasets[0].data = dau.slice().reverse().map(x=>x[3]-x[2]);
+    timelineC.update();
+
+    renderInsights(ai);
+  }
+
+  setInterval(refresh, 1500);
+  refresh();
+</script>
+</body>
+</html>
